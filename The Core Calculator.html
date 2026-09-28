@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRM IST - Advanced Attendance Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  
+  <style>
+    :root {
+      --primary: #1e3a8a; --primary-light: #3b82f6; --bg: #f8fafc; --card-bg: #ffffff;
+      --text: #1e293b; --text-muted: #64748b; --border: #e2e8f0; --danger: #ef4444;
+      --success: #10b981; --warning: #f59e0b;
+    }
+    [data-theme="dark"] {
+      --primary: #0f172a; --primary-light: #3b82f6; --bg: #111827; --card-bg: #1f2937;
+      --text: #f3f4f6; --text-muted: #9ca3af; --border: #374151;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); display: flex; flex-direction: column; min-height: 100vh; transition: background-color 0.3s, color 0.3s; }
+    header { background-color: var(--primary); color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    header h1 { font-size: 1.4rem; font-weight: 600; }
+    .container { max-width: 1450px; margin: 1.5rem auto; padding: 0 1rem; width: 100%; }
+    .controls { background-color: var(--card-bg); padding: 1.25rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-end; }
+    .control-group { display: flex; flex-direction: column; gap: 0.4rem; }
+    .control-group label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+    input[type="date"], select, input[type="number"] { padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.95rem; outline: none; background-color: var(--card-bg); color: var(--text); }
+    input[type="number"] { width: 70px; padding: 0.4rem; text-align: center; }
+    .btn { padding: 0.6rem 1.5rem; background-color: var(--primary-light); color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .btn:hover { background-color: #2563eb; }
+    .btn-outline { background-color: transparent; border: 1px solid var(--border); color: var(--text); }
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 300px; gap: 1.5rem; margin-bottom: 1.5rem; }
+    @media (max-width: 1024px) { .dashboard-grid { grid-template-columns: 1fr; } }
+    .card { background-color: var(--card-bg); border-radius: 8px; border: 1px solid var(--border); padding: 1.25rem; overflow-x: auto; }
+    .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem; color: var(--text); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: center; }
+    th, td { border: 1px solid var(--border); padding: 0.65rem 0.3rem; vertical-align: middle; }
+    th { background-color: var(--border); color: var(--text); font-weight: 600; font-size: 0.75rem; }
+    td.left-align { text-align: left; font-weight: 500; }
+    .od-input { border-color: var(--primary-light) !important; color: var(--primary-light); font-weight: bold; }
+    .irreversible-alert { background-color: var(--danger); color: white; font-weight: bold; padding: 0.3rem 0.6rem; border-radius: 4px; display: inline-block; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    .status-safe { color: var(--success); font-weight: bold; }
+    .status-warn { color: var(--warning); font-weight: bold; }
+    .bunk-budget { font-weight: bold; color: var(--primary-light); }
+    .chatbot-fab { position: fixed; bottom: 2rem; right: 2rem; width: 60px; height: 60px; background-color: var(--primary); color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 1.5rem; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: transform 0.2s; z-index: 1000; }
+    .chatbot-fab:hover { transform: scale(1.1); }
+    .chat-window { position: fixed; bottom: 6rem; right: 2rem; width: 350px; height: 450px; background-color: var(--card-bg); border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); border: 1px solid var(--border); display: flex; flex-direction: column; transform: translateY(20px); opacity: 0; pointer-events: none; transition: all 0.3s ease; z-index: 999; }
+    .chat-window.active { transform: translateY(0); opacity: 1; pointer-events: all; }
+    .chat-header { background-color: var(--primary); color: white; padding: 1rem; border-radius: 12px 12px 0 0; font-weight: 600; display: flex; justify-content: space-between; }
+    .chat-close { cursor: pointer; font-weight: bold; }
+    .chat-body { flex: 1; padding: 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.8rem; background-color: var(--bg); }
+    .msg { max-width: 80%; padding: 0.6rem 1rem; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; }
+    .msg.bot { background-color: var(--card-bg); color: var(--text); border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 2px; }
+    .msg.user { background-color: var(--primary-light); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+    .chat-input-area { padding: 0.8rem; border-top: 1px solid var(--border); display: flex; gap: 0.5rem; background-color: var(--card-bg); border-radius: 0 0 12px 12px; }
+    .chat-input-area input { flex: 1; padding: 0.6rem; border: 1px solid var(--border); border-radius: 20px; outline: none; background-color: var(--bg); color: var(--text); }
+    .chat-input-area button { background-color: var(--primary-light); color: white; border: none; padding: 0.5rem 1rem; border-radius: 20px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Phase 1: The Core Calculator</h1>
+      <div class="subtitle" style="color: #93c5fd; font-size: 0.85rem;">Attendance Planning, OD Simulator & AI Advisor</div>
+    </div>
+    <button class="btn btn-outline" onclick="toggleTheme()" style="color: white; border-color: rgba(255,255,255,0.3);">Toggle Dark Mode</button>
+  </header>
+
+  <div class="container">
+    <div class="controls">
+      <div class="control-group">
+        <label for="classSelect">Select Class / Section</label>
+        <select id="classSelect" onchange="initializeSubjects()">
+          <option value="I_CSE_CYBER" selected>I CSE - Cybersecurity (Sem I)</option>
+          <option value="IV_ECE_B">IV ECE - B (Sem VII)</option>
+          <option value="IV_ECE_A">IV ECE - A (Sem VII)</option>
+          <option value="III_ECE_A">III ECE - A (Sem V)</option>
+          <option value="III_ECE_B">III ECE - B (Sem V)</option>
+          <option value="III_ECE_DS">III ECE - DS (Sem V)</option>
+          <option value="II_ECE_DS_A">II ECE - DS A (Sem III)</option>
+          <option value="II_ECE_DS_B">II ECE - DS B (Sem III)</option>
+          <option value="III_BME">III BME (Sem V)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="targetDate">Semester End Date</label>
+        <input type="date" id="targetDate" onchange="calculateAttendance()">
+      </div>
+      <button class="btn" onclick="calculateAttendance()">Run Projections</button>
+    </div>
+
+    <div class="dashboard-grid">
+      <div class="card">
+        <div class="card-title">Attendance Dashboard & OD Simulator</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>Conducted</th>
+              <th>Attended</th>
+              <th style="color: var(--primary-light);">OD / ML</th>
+              <th>Current %</th>
+              <th>Safe Skips Left</th>
+              <th>Remaining</th>
+              <th>To Hit 75%</th>
+              <th>To Hit 90%</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="calculatorBody"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title">Overall Health Map</div>
+        <div style="position: relative; height:300px; width:100%">
+          <canvas id="healthChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chatbot-fab" onclick="toggleChat()">💬</div>
+  <div class="chat-window" id="chatWidget">
+    <div class="chat-header"><span>Attendance Advisor AI</span><span class="chat-close" onclick="toggleChat()">✕</span></div>
+    <div class="chat-body" id="chatBody"><div class="msg bot">Hi Robin! Ask me things like: <i>"If I skip 2 classes of Physics, will I drop below 75%?"</i></div></div>
+    <div class="chat-input-area">
+      <input type="text" id="chatInput" placeholder="Ask about your attendance..." onkeypress="handleChatEnter(event)">
+      <button onclick="processUserMsg()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    const portalData = {
+      "I_CSE_CYBER": {
+        subjects: [
+          { code: "21MAB101T", name: "Calculus and Linear Algebra", slot: "A" },
+          { code: "21PYB101T", name: "Engineering Physics", slot: "B" },
+          { code: "21CSC101T", name: "Programming for Problem Solving", slot: "C" },
+          { code: "21CYB101T", name: "Introduction to Cybersecurity", slot: "D" },
+          { code: "21GNH101T", name: "Communicative English", slot: "E" }
+        ],
+        grid: {
+          Monday: ["C", "A", "TEA BREAK", "D", "E", "-", "LUNCH", "LAB", "LAB", "-"],
+          Tuesday: ["B", "C", "TEA BREAK", "A", "D", "-", "LUNCH", "-", "-", "-"],
+          Wednesday: ["D", "B", "TEA BREAK", "C", "E", "-", "LUNCH", "-", "-", "-"],
+          Thursday: ["A", "E", "TEA BREAK", "B", "C", "-", "LUNCH", "LAB", "LAB", "-"],
+          Friday: ["E", "D", "TEA BREAK", "A", "B", "-", "LUNCH", "-", "-", "-"]
+        }
+      },
+      "IV_ECE_B": {
+        subjects: [ { code: "21GNH401T", name: "Behavioural Psychology", slot: "A" }, { code: "21ECC401T", name: "Wireless Comm", slot: "B" }, { code: "21ECC402P", name: "Network Security", slot: "C" }, { code: "21ECE461T", name: "Semiconductor Memory", slot: "D" }, { code: "21ECE463T", name: "Scripting EDA", slot: "E" }, { code: "21CSO355T", name: "Machine Learning", slot: "F" }, { code: "LAB", name: "Network Security Lab", slot: "LAB" } ],
+        grid: { Monday: ["C","A","TEA BREAK","E","F","-","LUNCH","-","-","-"], Tuesday: ["C","E","TEA BREAK","F","B","-","LUNCH","-","-","-"], Wednesday: ["C","D","TEA BREAK","A","B","-","LUNCH","-","-","-"], Thursday: ["D","B","TEA BREAK","LAB","A","-","LUNCH","-","-","-"], Friday: ["E","D","TEA BREAK","F","-","-","LUNCH","-","-","-"] }
+      },
+      "IV_ECE_A": {
+        subjects: [ { code: "21GNH401T", name: "Behavioural Psychology", slot: "A" }, { code: "21ECC401T", name: "Wireless Comm", slot: "B" }, { code: "21ECC402P", name: "Network Security", slot: "C" }, { code: "21ECE461T", name: "Semiconductor Memory", slot: "D" }, { code: "21ECE463T", name: "Scripting EDA", slot: "E" }, { code: "21CSO355T", name: "Machine Learning", slot: "F" }, { code: "LAB", name: "Network Security Lab", slot: "LAB" } ],
+        grid: { Monday: ["C","D","TEA BREAK","D","-","-","LUNCH","-","-","-"], Tuesday: ["C","-","TEA BREAK","F","-","-","LUNCH","LAB","LAB","LAB"], Wednesday: ["B","E","TEA BREAK","F","-","-","LUNCH","-","-","-"], Thursday: ["F","A","TEA BREAK","E","B","-","LUNCH","-","-","-"], Friday: ["C","A","TEA BREAK","D","E","-","LUNCH","-","-","-"] }
+      },
+      "III_ECE_A": {
+        subjects: [ { code: "21MAB302T", name: "Discrete Maths", slot: "A" }, { code: "21ECC301P", name: "Microprocessor", slot: "B" }, { code: "21ECC303T", name: "VLSI Design", slot: "C" }, { code: "21ECE468T", name: "System on Chip", slot: "D" }, { code: "21CSO355T", name: "Machine Learning", slot: "E" }, { code: "21GNP301L", name: "Community Connect", slot: "F" }, { code: "21PDM301L", name: "Logical Thinking", slot: "G" }, { code: "21LEM301T", name: "Indian Art Form", slot: "H" }, { code: "LAB", name: "VLSI / MP Lab", slot: "LAB" } ],
+        grid: { Monday: ["E","B","TEA BREAK","B","A","LUNCH","-","G","-","-"], Tuesday: ["H","D","TEA BREAK","B","B","LUNCH","-","G","-","-"], Wednesday: ["C","A","TEA BREAK","D","F","LUNCH","-","LAB","LAB","-"], Thursday: ["A","K","TEA BREAK","C","F","LUNCH","-","LAB","LAB","-"], Friday: ["D","E","TEA BREAK","E","C","LUNCH","-","-","-","-"] }
+      },
+      "III_ECE_B": {
+        subjects: [ { code: "21MAB302T", name: "Discrete Maths", slot: "A" }, { code: "21ECC301P", name: "Microprocessor", slot: "B" }, { code: "21ECC303T", name: "VLSI Design", slot: "C" }, { code: "21ECE468T", name: "System on Chip", slot: "D" }, { code: "21CSO355T", name: "Machine Learning", slot: "E" }, { code: "21GNP301L", name: "Community Connect", slot: "F" }, { code: "21PDM301L", name: "Logical Thinking", slot: "G" }, { code: "21LEM301T", name: "Indian Art Form", slot: "H" }, { code: "LAB", name: "VLSI / MP Lab", slot: "LAB" } ],
+        grid: { Monday: ["LAB","LAB","TEA BREAK","-","-","LUNCH","E","B","A","D"], Tuesday: ["G","-","TEA BREAK","-","-","LUNCH","F","B","D","C"], Wednesday: ["G","-","TEA BREAK","-","-","LUNCH","B","B","A","H"], Thursday: ["LAB","LAB","TEA BREAK","-","-","LUNCH","A","C","E","F"], Friday: ["-","-","TEA BREAK","-","-","LUNCH","C","A","E","D"] }
+      },
+      "III_ECE_DS": {
+        subjects: [ { code: "21MAB302T", name: "Discrete Maths", slot: "A" }, { code: "21ECC301P", name: "Microprocessor", slot: "B" }, { code: "21ECC303T", name: "VLSI Design", slot: "C" }, { code: "21CSO355T", name: "Machine Learning", slot: "D" }, { code: "21ECE371T", name: "Database Design", slot: "E" }, { code: "21GNP301L", name: "Community Connect", slot: "F" }, { code: "21PDM301L", name: "Logical Thinking", slot: "G" }, { code: "21LEM301T", name: "Indian Art Form", slot: "H" }, { code: "LAB", name: "VLSI / MP Lab", slot: "LAB" } ],
+        grid: { Monday: ["E","B","TEA BREAK","C","A","LUNCH","-","LAB","LAB","G"], Tuesday: ["C","B","TEA BREAK","D","F","LUNCH","-","-","-","-"], Wednesday: ["H","B","TEA BREAK","A","C","LUNCH","-","-","-","-"], Thursday: ["A","D","TEA BREAK","E","F","LUNCH","-","-","-","-"], Friday: ["D","A","TEA BREAK","E","B","LUNCH","-","G","LAB","LAB"] }
+      },
+      "II_ECE_DS_A": {
+        subjects: [ { code: "21MAB201T", name: "Transforms & BVP", slot: "A" }, { code: "21ECC201T", name: "Solid State Devices", slot: "B" }, { code: "21CSS201T", name: "Comp Architecture", slot: "C" }, { code: "21ECC203T", name: "Digital Logic", slot: "D" }, { code: "21ECC205T", name: "Electromagnetic Theory", slot: "E" }, { code: "21LEM201T", name: "Professional Ethics", slot: "F" }, { code: "21LEM202T", name: "Universal Human Values", slot: "G" }, { code: "21PDM201L", name: "Verbal Reasoning", slot: "H" }, { code: "21PDH209T", name: "Social Engineering", slot: "I" }, { code: "LAB", name: "Digital IC Lab", slot: "LAB" } ],
+        grid: { Monday: ["E","A","TEA BREAK","1","-","LUNCH","G","LAB","LAB","-"], Tuesday: ["C","A","TEA BREAK","A","E","LUNCH","D","G","H","-"], Wednesday: ["A","B","TEA BREAK","C","D","LUNCH","H","-","-","-"], Thursday: ["B","C","TEA BREAK","A","F","LUNCH","LAB","LAB","-","-"], Friday: ["D","B","TEA BREAK","E","C","LUNCH","-","-","-","-"] }
+      },
+      "II_ECE_DS_B": {
+        subjects: [ { code: "21MAB201T", name: "Transforms & BVP", slot: "A" }, { code: "21ECC201T", name: "Solid State Devices", slot: "B" }, { code: "21CSS201T", name: "Comp Architecture", slot: "C" }, { code: "21ECC203T", name: "Digital Logic", slot: "D" }, { code: "21ECC205T", name: "Electromagnetic Theory", slot: "E" }, { code: "21LEM201T", name: "Professional Ethics", slot: "F" }, { code: "21LEM202T", name: "Universal Human Values", slot: "G" }, { code: "21PDM201L", name: "Verbal Reasoning", slot: "H" }, { code: "21PDH209T", name: "Social Engineering", slot: "I" }, { code: "LAB", name: "Digital IC Lab", slot: "LAB" } ],
+        grid: { Monday: ["LAB","LAB","TEA BREAK","D","B","LUNCH","C","1","A","-"], Tuesday: ["-","-","TEA BREAK","C","D","LUNCH","E","-","-","-"], Wednesday: ["G","-","TEA BREAK","1","E","LUNCH","A","D","-","-"], Thursday: ["G","H","TEA BREAK","A","C","LUNCH","B","E","-","-"], Friday: ["H","-","TEA BREAK","F","A","LUNCH","B","C","-","-"] }
+      },
+      "III_BME": {
+        subjects: [ { code: "21MAB301T", name: "Probability & Stats", slot: "A" }, { code: "21BMC302J", name: "Microcontrollers Med", slot: "B" }, { code: "21BMC301J", name: "Biomedical Signal", slot: "C" }, { code: "21BME266T", name: "Biometrics", slot: "D" }, { code: "21ECO103T", name: "Modern Wireless", slot: "E" }, { code: "21BMC303T", name: "Medical Imaging", slot: "F" }, { code: "21PDM301L", name: "Logical Thinking", slot: "G" }, { code: "21LEM301T", name: "Indian Art", slot: "H" }, { code: "21GNP301L", name: "Community Connect", slot: "I" }, { code: "LAB", name: "Labs", slot: "LAB" } ],
+        grid: { Monday: ["G","-","TEA BREAK","LAB","LAB","LUNCH","E","B","F","H"], Tuesday: ["LAB","LAB","TEA BREAK","G","-","LUNCH","C","D","A","B"], Wednesday: ["-","-","TEA BREAK","-","-","LUNCH","C","A","F","D"], Thursday: ["-","-","TEA BREAK","1","1","LUNCH","A","C","E","B"], Friday: ["1","-","TEA BREAK","-","-","LUNCH","F","A","D","E"] }
+      }
+    };
+
+    let healthChartInstance = null;
+
+    function toggleTheme() {
+      const body = document.body;
+      if (body.getAttribute("data-theme") === "dark") { body.removeAttribute("data-theme"); localStorage.setItem("theme", "light"); }
+      else { body.setAttribute("data-theme", "dark"); localStorage.setItem("theme", "dark"); }
+      updateChart(); 
+    }
+    function checkTheme() { if (localStorage.getItem("theme") === "dark") document.body.setAttribute("data-theme", "dark"); }
+    function setDefaultDate() { document.getElementById("targetDate").value = new Date(new Date().getFullYear(), 10, 30).toISOString().split('T')[0]; }
+
+    function autoSaveAttendance() {
+      const sel = document.getElementById("classSelect").value;
+      const dataToSave = {};
+      portalData[sel].subjects.forEach((sub, i) => {
+        dataToSave[sub.code] = { c: document.getElementById(`conducted_${i}`).value, a: document.getElementById(`attended_${i}`).value, od: document.getElementById(`od_${i}`).value };
+      });
+      localStorage.setItem(`srm_trk_${sel}`, JSON.stringify(dataToSave));
+      updateChart();
+    }
+
+    function initializeSubjects() {
+      const sel = document.getElementById("classSelect").value;
+      const tbody = document.getElementById("calculatorBody");
+      tbody.innerHTML = "";
+      const saved = JSON.parse(localStorage.getItem(`srm_trk_${sel}`)) || {};
+
+      portalData[sel].subjects.forEach((sub, i) => {
+        const cVal = saved[sub.code] ? saved[sub.code].c : 30;
+        const aVal = saved[sub.code] ? saved[sub.code].a : 20;
+        const odVal = saved[sub.code] ? saved[sub.code].od : 0;
+        tbody.innerHTML += `
+          <tr>
+            <td class="left-align"><strong>${sub.code}</strong><br><small>${sub.name}</small></td>
+            <td><input type="number" id="conducted_${i}" min="0" value="${cVal}" oninput="updateRow(${i})"></td>
+            <td><input type="number" id="attended_${i}" min="0" value="${aVal}" oninput="updateRow(${i})"></td>
+            <td><input type="number" id="od_${i}" class="od-input" min="0" value="${odVal}" oninput="updateRow(${i})"></td>
+            <td id="percent_${i}">--%</td>
+            <td id="bunk_${i}" class="bunk-budget">-</td>
+            <td id="remaining_${i}">-</td>
+            <td id="req75_${i}">-</td>
+            <td id="req90_${i}">-</td>
+            <td id="status_${i}">-</td>
+          </tr>`;
+      });
+      portalData[sel].subjects.forEach((_, i) => updateRow(i, false));
+      calculateAttendance(); initChart();
+    }
+
+    function updateRow(i, save = true) {
+      const c = parseInt(document.getElementById(`conducted_${i}`).value) || 0;
+      const a = parseInt(document.getElementById(`attended_${i}`).value) || 0;
+      const od = parseInt(document.getElementById(`od_${i}`).value) || 0;
+      const pctCell = document.getElementById(`percent_${i}`), bunkCell = document.getElementById(`bunk_${i}`);
+      const tot = a + od;
+
+      if(c === 0) { pctCell.innerText = "0%"; bunkCell.innerText = "0"; } 
+      else {
+        const pct = ((tot / c) * 100).toFixed(1);
+        pctCell.innerText = `${pct}%`;
+        const maxConducted = Math.floor(tot / 0.75);
+        const safeSkips = maxConducted - c;
+        if (safeSkips > 0) { bunkCell.innerText = safeSkips; bunkCell.style.color = "var(--success)"; pctCell.style.color = "var(--success)"; }
+        else { bunkCell.innerText = "0"; bunkCell.style.color = "var(--danger)"; pctCell.style.color = "var(--danger)"; }
+      }
+      if(save) { autoSaveAttendance(); calculateAttendance(); }
+    }
+
+    function initChart() {
+      const ctx = document.getElementById('healthChart').getContext('2d');
+      if (healthChartInstance) healthChartInstance.destroy();
+      healthChartInstance = new Chart(ctx, {
+        type: 'pie',
+        data: { labels: [], datasets: [{ label: 'Current %', data: [], backgroundColor: [], borderWidth: 2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'right' } } }
+      });
+      updateChart();
+    }
+
+    function updateChart() {
+      if(!healthChartInstance) return;
+      const sel = document.getElementById("classSelect").value;
+      const labels = [], data = [], bgColors = [];
+      const isDark = document.body.getAttribute('data-theme') === 'dark';
+      
+      portalData[sel].subjects.forEach((sub, i) => {
+        labels.push(sub.code);
+        const c = parseInt(document.getElementById(`conducted_${i}`).value) || 0;
+        const tot = (parseInt(document.getElementById(`attended_${i}`).value) || 0) + (parseInt(document.getElementById(`od_${i}`).value) || 0);
+        const pct = c === 0 ? 0 : ((tot / c) * 100).toFixed(1);
+        data.push(pct);
+        bgColors.push(pct < 75 ? '#ef4444' : (pct < 80 ? '#f59e0b' : '#10b981'));
+      });
+      healthChartInstance.data.labels = labels;
+      healthChartInstance.data.datasets[0].data = data;
+      healthChartInstance.data.datasets[0].backgroundColor = bgColors;
+      healthChartInstance.data.datasets[0].borderColor = isDark ? '#1f2937' : '#ffffff';
+      healthChartInstance.options.plugins.legend.labels.color = isDark ? '#f3f4f6' : '#1e293b';
+      healthChartInstance.update();
+    }
+
+    function calculateAttendance() {
+      const tgt = document.getElementById("targetDate").value;
+      if(!tgt) return;
+      let counts = { 'Sunday':0, 'Monday':0, 'Tuesday':0, 'Wednesday':0, 'Thursday':0, 'Friday':0, 'Saturday':0 };
+      let curr = new Date(); curr.setHours(0,0,0,0);
+      let end = new Date(tgt); end.setHours(0,0,0,0);
+      while(curr <= end) { counts[curr.toLocaleDateString('en-US', {weekday:'long'})]++; curr.setDate(curr.getDate()+1); }
+      
+      const classData = portalData[document.getElementById("classSelect").value];
+      classData.subjects.forEach((sub, i) => {
+        let rem = 0;
+        ['Monday','Tuesday','Wednesday','Thursday','Friday'].forEach(d => {
+          if(classData.grid[d]) rem += (classData.grid[d].filter(s => s === sub.slot || s.includes(sub.slot)).length * counts[d]);
+        });
+        document.getElementById(`remaining_${i}`).innerText = rem;
+
+        const c = parseInt(document.getElementById(`conducted_${i}`).value) || 0;
+        const totA = (parseInt(document.getElementById(`attended_${i}`).value) || 0) + (parseInt(document.getElementById(`od_${i}`).value) || 0);
+        
+        const totPoss = c + rem;
+        const need75 = Math.ceil(0.75 * totPoss) - totA;
+        const need90 = Math.ceil(0.90 * totPoss) - totA;
+
+        const r75 = document.getElementById(`req75_${i}`), r90 = document.getElementById(`req90_${i}`), stat = document.getElementById(`status_${i}`);
+
+        if(need75 <= 0) { r75.innerText = "Goal Met"; r75.className = "status-safe"; }
+        else if (need75 > rem) { r75.innerText = "Impossible"; r75.className = ""; }
+        else { r75.innerText = `${need75} / ${rem}`; r75.className = ""; }
+
+        if(need90 <= 0) { r90.innerText = "Goal Met"; r90.className = "status-safe"; }
+        else if (need90 > rem) { r90.innerText = "Impossible"; r90.className = ""; }
+        else { r90.innerText = `${need90} / ${rem}`; r90.className = ""; }
+
+        if (need75 > rem) stat.innerHTML = `<span class="irreversible-alert">Detention</span>`;
+        else if (need75 > (rem * 0.8)) stat.innerHTML = `<span class="status-warn">Critical</span>`;
+        else stat.innerHTML = `<span class="status-safe">Safe</span>`;
+      });
+    }
+
+    function toggleChat() { document.getElementById('chatWidget').classList.toggle('active'); }
+    function handleChatEnter(e) { if(e.key === 'Enter') processUserMsg(); }
+    function appendMsg(txt, snd) {
+      const b = document.getElementById('chatBody'), m = document.createElement('div');
+      m.className = `msg ${snd}`; m.innerHTML = txt; b.appendChild(m); b.scrollTop = b.scrollHeight;
+    }
+    function processUserMsg() {
+      const el = document.getElementById('chatInput'), q = el.value.trim().toLowerCase();
+      if(!q) return; appendMsg(el.value, 'user'); el.value = '';
+      setTimeout(() => { appendMsg(generateBotResponse(q), 'bot'); }, 400);
+    }
+    function generateBotResponse(q) {
+      const subs = portalData[document.getElementById("classSelect").value].subjects;
+      const numMatch = q.match(/\d+/), skip = numMatch ? parseInt(numMatch[0]) : 1;
+      const target = subs.find(s => q.includes(s.name.toLowerCase().split(' ')[0]) || q.includes(s.code.toLowerCase()));
+      
+      if (target) {
+        const i = subs.indexOf(target);
+        const c = parseInt(document.getElementById(`conducted_${i}`).value) || 0;
+        const totA = (parseInt(document.getElementById(`attended_${i}`).value) || 0) + (parseInt(document.getElementById(`od_${i}`).value) || 0);
+        const newPct = ((totA / (c + skip)) * 100).toFixed(1);
+        if (newPct < 75) return `🚨 Warning! Skipping ${skip} classes drops ${target.name} to **${newPct}%** (Danger zone).`;
+        return `✅ Safe. Skipping ${skip} classes makes ${target.name} **${newPct}%**.`;
+      }
+      if (q.includes("highest") || q.includes("best")) return "Check your Health Map! The green slices are your safest subjects.";
+      return "I didn't catch the subject. Try: 'If I skip 2 classes of Physics...'";
+    }
+
+    window.onload = () => { checkTheme(); setDefaultDate(); initializeSubjects(); };
+  </script>
+</body>
+</html>
